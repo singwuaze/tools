@@ -39,43 +39,33 @@
         .file-label { display: flex; justify-content: space-between; background: rgba(0,0,0,0.2); border: 1px dashed var(--border); padding: 16px; border-radius: 16px; cursor: pointer; font-size: 14px; }
 
         .studio-box { background: rgba(0,0,0,0.4); padding: 25px; border-radius: 30px; border: 1px solid var(--border); margin-bottom: 25px; }
-        .player-row { display: flex; align-items: center; gap: 20px; }
-        .play-btn { background: #fff; color: #000; border: none; width: 50px; height: 50px; border-radius: 50%; font-size: 22px; cursor: pointer; transition: 0.2s; flex-shrink: 0; }
+        
+        /* Studio Player UI */
+        .mode-selector { display: flex; gap: 8px; margin-bottom: 20px; background: rgba(0,0,0,0.3); padding: 5px; border-radius: 14px; }
+        .mode-btn { flex: 1; padding: 8px; border: none; border-radius: 10px; background: transparent; color: #666; font-size: 10px; font-weight: 800; cursor: pointer; transition: 0.3s; text-transform: uppercase; }
+        .mode-btn.active { background: var(--accent); color: #fff; }
+
+        .player-row { display: flex; align-items: center; gap: 15px; }
+        .play-btn { background: #fff; color: #000; border: none; width: 45px; height: 45px; border-radius: 50%; font-size: 20px; cursor: pointer; transition: 0.2s; flex-shrink: 0; }
         
         #music-slider { width: 100%; height: 6px; background: #222; border-radius: 10px; outline: none; -webkit-appearance: none; cursor: pointer; }
         #music-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 2px solid var(--accent); }
         .time-info { display: flex; justify-content: space-between; font-size: 10px; font-family: monospace; opacity: 0.5; margin-top: 8px; }
 
         #lrcDisplay { height: 130px; overflow-y: hidden; text-align: center; margin-top: 15px; }
-        .lrc-line { font-size: 20px; color: #333; margin: 12px 0; transition: 0.4s; font-weight: 700; text-transform: uppercase; }
-        .lrc-line.active { color: #fff; transform: scale(1.15); text-shadow: 0 0 20px var(--accent); }
+        .lrc-line { font-size: 18px; color: #333; margin: 12px 0; transition: 0.4s; font-weight: 700; text-transform: uppercase; }
+        .lrc-line.active { color: #fff; transform: scale(1.1); text-shadow: 0 0 15px var(--accent); }
 
         .variant-box { margin-top: 15px; position: relative; }
         select { width: 100%; background: #111; color: #fff; border: 1px solid var(--accent); padding: 15px; border-radius: 16px; font-size: 14px; outline: none; cursor: pointer; appearance: none; -webkit-appearance: none; font-weight: 600; }
         .variant-box::after { content: '▼'; position: absolute; right: 20px; bottom: 18px; font-size: 10px; color: var(--accent); pointer-events: none; }
 
         .btn-primary { width: 100%; padding: 18px; border: none; border-radius: 20px; background: var(--accent); color: white; font-weight: 800; cursor: pointer; margin-top: 15px; transition: 0.3s; }
-        
         .action-row { display: flex; gap: 10px; }
         #new-btn { display: none; background: rgba(255,255,255,0.1); border: 1px solid var(--border); }
 
-        #build-progress-container { 
-            display: none; 
-            margin-top: 25px; 
-            background: rgba(255,255,255,0.05); 
-            border: 1px solid var(--border);
-            border-radius: 20px; 
-            height: 14px; 
-            padding: 2px;
-            overflow: hidden; 
-        }
-        #build-progress-bar { 
-            width: 0%; 
-            height: 100%; 
-            background: linear-gradient(90deg, var(--accent), #00a2ff); 
-            border-radius: 20px;
-            transition: width 0.2s ease-out; 
-        }
+        #build-progress-container { display: none; margin-top: 25px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 20px; height: 14px; padding: 2px; overflow: hidden; }
+        #build-progress-bar { width: 0%; height: 100%; background: linear-gradient(90deg, var(--accent), #00a2ff); border-radius: 20px; transition: width 0.2s ease-out; }
     </style>
 </head>
 <body>
@@ -107,8 +97,12 @@
 
         <div class="step" id="step-3">
             <div class="studio-box">
+                <div class="mode-selector">
+                    <button class="mode-btn active" id="mode-inst" onclick="setMode('inst')">Instrumental</button>
+                    <button class="mode-btn" id="mode-voc" onclick="setMode('voc')">Vocals Only</button>
+                </div>
                 <div class="player-row">
-                    <button class="play-btn" id="playBtn" onclick="toggleSync()">▶</button>
+                    <button class="play-btn" id="playBtn" onclick="togglePlay()">▶</button>
                     <div style="flex:1">
                         <input type="range" id="music-slider" value="0" step="0.01" oninput="seek(this.value)">
                         <div class="time-info"><span id="t-curr">0:00</span><span id="t-total">0:00</span></div>
@@ -136,8 +130,8 @@
     <script>
         let a1 = new Audio(), a2 = new Audio(), lData = [], isP = false, vars = [];
         let rawInst, rawVoc, activeLrcMeta = null;
-        let lastBuiltBlob = null;
-        let lastFileName = "";
+        let lastBuiltBlob = null, lastFileName = "";
+        let currentMode = 'inst'; // 'inst' or 'voc'
 
         function updName(i, id) { if(i.files[0]) document.getElementById(id).innerText = i.files[0].name; }
         function nextStep(n) { document.querySelectorAll('.step').forEach(s => s.classList.remove('active-step')); document.getElementById('step-'+n).classList.add('active-step'); }
@@ -148,13 +142,31 @@
             rawVoc = document.getElementById('voc-up').files[0];
             if(!rawInst || !rawVoc) return alert("Files required!");
 
-            a1.src = URL.createObjectURL(rawInst); a2.src = URL.createObjectURL(rawVoc);
+            a1.src = URL.createObjectURL(rawInst); 
+            a2.src = URL.createObjectURL(rawVoc);
             a1.load(); a2.load();
+
             a1.onloadedmetadata = () => {
                 document.getElementById('t-total').innerText = fmt(a1.duration);
                 document.getElementById('music-slider').max = a1.duration;
             };
             nextStep(3); fetchV(t, r);
+        }
+
+        function setMode(mode) {
+            const wasPlaying = isP;
+            if (wasPlaying) pauseAll();
+            
+            currentMode = mode;
+            document.getElementById('mode-inst').classList.toggle('active', mode === 'inst');
+            document.getElementById('mode-voc').classList.toggle('active', mode === 'voc');
+            
+            // Sync current time to new track
+            const time = a1.currentTime;
+            a1.currentTime = time;
+            a2.currentTime = time;
+
+            if (wasPlaying) togglePlay();
         }
 
         async function fetchV(t, r) {
@@ -174,11 +186,7 @@
         function loadLyrics(idx) {
             if(idx === "") return;
             const data = vars[idx];
-            activeLrcMeta = { 
-                title: data.trackName, 
-                artist: data.artistName,
-                url: `https://lrclib.net/api/get/${data.id}`
-            };
+            activeLrcMeta = { title: data.trackName, artist: data.artistName, url: `https://lrclib.net/api/get/${data.id}` };
             const c = document.getElementById('lrcContent'); c.innerHTML = ""; lData = [];
             data.syncedLyrics.split('\n').forEach(line => {
                 const m = line.match(/\[(\d+):(\d+\.\d+)\](.*)/);
@@ -192,35 +200,48 @@
             document.getElementById('buildBtn').innerText = "Build";
         }
 
-        async function toggleSync() {
-            if(!isP) { 
-                if (a1.readyState < 3 || a2.readyState < 3) {
-                   document.getElementById('playBtn').innerText = "⏳";
-                   await Promise.all([new Promise(res => a1.oncanplaythrough = res), new Promise(res => a2.oncanplaythrough = res)]);
-                   document.getElementById('playBtn').innerText = "▶";
-                }
-                a2.currentTime = a1.currentTime; 
-                await a1.play(); await a2.play(); 
-                isP = true; requestAnimationFrame(syncLoop); 
-            } else { a1.pause(); a2.pause(); isP = false; }
+        async function togglePlay() {
+            const activeAudio = currentMode === 'inst' ? a1 : a2;
+            const idleAudio = currentMode === 'inst' ? a2 : a1;
+
+            if(!isP) {
+                idleAudio.pause(); // Ensure the other is off
+                activeAudio.currentTime = idleAudio.currentTime; // Sync
+                await activeAudio.play();
+                isP = true;
+                document.getElementById('playBtn').innerText = "⏸";
+                requestAnimationFrame(syncLoop);
+            } else {
+                pauseAll();
+            }
         }
 
-        function seek(v) { 
-            const wasP = isP; if(wasP) { a1.pause(); a2.pause(); }
-            a1.currentTime = v; a2.currentTime = v; 
-            if(wasP) setTimeout(() => { a2.currentTime = a1.currentTime; a1.play(); a2.play(); }, 10);
+        function pauseAll() {
+            a1.pause(); a2.pause();
+            isP = false;
+            document.getElementById('playBtn').innerText = "▶";
+        }
+
+        function seek(v) {
+            const time = parseFloat(v);
+            a1.currentTime = time;
+            a2.currentTime = time;
+            document.getElementById('t-curr').innerText = fmt(time);
         }
 
         function fmt(s) { const m = Math.floor(s/60), sc = Math.floor(s%60); return `${m}:${sc<10?'0':''}${sc}`; }
 
         function syncLoop() {
             if (!isP) return;
-            if (Math.abs(a1.currentTime - a2.currentTime) > 0.008) a2.currentTime = a1.currentTime;
-            document.getElementById('music-slider').value = a1.currentTime;
-            document.getElementById('t-curr').innerText = fmt(a1.currentTime);
+            const activeAudio = currentMode === 'inst' ? a1 : a2;
+            const t = activeAudio.currentTime;
+            
+            document.getElementById('music-slider').value = t;
+            document.getElementById('t-curr').innerText = fmt(t);
+            
             lData.forEach((item, i) => {
                 const nxt = lData[i+1];
-                if(a1.currentTime >= item.time && (!nxt || a1.currentTime < nxt.time)) {
+                if(t >= item.time && (!nxt || t < nxt.time)) {
                     item.el.classList.add('active'); item.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 } else { item.el.classList.remove('active'); }
             });
@@ -230,21 +251,15 @@
         async function buildSWK() {
             const buildBtn = document.getElementById('buildBtn');
             const newBtn = document.getElementById('new-btn');
-            
             if (lastBuiltBlob) {
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(lastBuiltBlob);
-                link.download = lastFileName;
-                link.click();
-                return;
+                link.download = lastFileName; link.click(); return;
             }
-
             if(!activeLrcMeta) return alert("Pick lyrics first!");
+            buildBtn.disabled = true; buildBtn.innerText = "Processing...";
             const progressCont = document.getElementById('build-progress-container');
             const progressBar = document.getElementById('build-progress-bar');
-            
-            buildBtn.disabled = true;
-            buildBtn.innerText = "Processing...";
             progressCont.style.display = "block";
             
             const zip = new JSZip();
@@ -256,33 +271,23 @@
             zip.file("vocals.mp3", rawVoc);
             zip.file("lrc.json", JSON.stringify(activeLrcMeta, null, 2));
 
-            lastBuiltBlob = await zip.generateAsync({type:"blob"}, (m) => {
-                progressBar.style.width = m.percent + "%";
-            });
-
+            lastBuiltBlob = await zip.generateAsync({type:"blob"}, (m) => { progressBar.style.width = m.percent + "%"; });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(lastBuiltBlob);
-            link.download = lastFileName;
-            link.click();
+            link.download = lastFileName; link.click();
             
             setTimeout(() => {
-                buildBtn.disabled = false;
-                buildBtn.innerText = "Redownload";
-                progressCont.style.display = "none";
-                newBtn.style.display = "block";
+                buildBtn.disabled = false; buildBtn.innerText = "Redownload";
+                progressCont.style.display = "none"; newBtn.style.display = "block";
             }, 1000);
         }
 
         function resetAll() {
-            a1.pause(); a2.pause(); isP = false;
-            a1 = new Audio(); a2 = new Audio();
+            pauseAll(); a1 = new Audio(); a2 = new Audio();
             lastBuiltBlob = null;
-            document.getElementById('song').value = "";
-            document.getElementById('artist').value = "";
-            document.getElementById('inst-up').value = "";
-            document.getElementById('voc-up').value = "";
-            document.getElementById('inst-txt').innerText = "Select File";
-            document.getElementById('voc-txt').innerText = "Select File";
+            document.getElementById('song').value = ""; document.getElementById('artist').value = "";
+            document.getElementById('inst-up').value = ""; document.getElementById('voc-up').value = "";
+            document.getElementById('inst-txt').innerText = "Select File"; document.getElementById('voc-txt').innerText = "Select File";
             document.getElementById('lrcContent').innerHTML = "Select Variant Below";
             document.getElementById('lyrics-select').innerHTML = '<option value="">Searching...</option>';
             document.getElementById('new-btn').style.display = "none";
